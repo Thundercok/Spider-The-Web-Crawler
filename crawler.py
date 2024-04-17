@@ -17,13 +17,12 @@ from urllib.parse import urljoin, urlparse, urldefrag
 from urllib.robotparser import RobotFileParser
 
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QPushButton, QTextEdit,
-    QLabel, QLineEdit, QCheckBox, QSpinBox, QDoubleSpinBox,
-    QGroupBox, QHBoxLayout, QProgressBar, QFileDialog, QGridLayout,
-    QSplitter, QFrame,
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+    QTextEdit, QLabel, QLineEdit, QCheckBox, QSpinBox, QDoubleSpinBox,
+    QProgressBar, QFileDialog, QFrame, QSizePolicy,
 )
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QDateTime
+from PyQt6.QtGui import QFont, QColor, QTextCharFormat, QTextCursor
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -369,7 +368,266 @@ class Spider(QThread):
 
 
 # ---------------------------------------------------------------------------
-# Main UI
+# Stylesheet
+# ---------------------------------------------------------------------------
+
+QSS = """
+/* ── Base ─────────────────────────────────────────────────────────── */
+QWidget {
+    background: #1a1b1e;
+    color: #c9ccd4;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    font-size: 13px;
+}
+
+/* ── Window title bar strip ────────────────────────────────────────── */
+QWidget#titlebar {
+    background: #141517;
+    border-bottom: 1px solid #2a2b30;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────── */
+QWidget#sidebar {
+    background: #141517;
+    border-right: 1px solid #2a2b30;
+}
+
+/* ── Section header labels inside sidebar ──────────────────────────── */
+QLabel#section-heading {
+    color: #555b6b;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+/* ── URL input ──────────────────────────────────────────────────────── */
+QLineEdit {
+    background: #111214;
+    border: 1px solid #2a2b30;
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: #e0e2e8;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 13px;
+    selection-background-color: #3b82f6;
+}
+QLineEdit:focus {
+    border-color: #3b82f6;
+}
+QLineEdit::placeholder {
+    color: #40444f;
+}
+
+/* ── Checkboxes ─────────────────────────────────────────────────────── */
+QCheckBox {
+    spacing: 7px;
+    color: #9aa0b0;
+    font-size: 13px;
+}
+QCheckBox::indicator {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid #3a3d47;
+    background: #111214;
+}
+QCheckBox::indicator:checked {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    image: url(none);
+}
+QCheckBox::indicator:hover {
+    border-color: #3b82f6;
+}
+
+/* ── Spin boxes ─────────────────────────────────────────────────────── */
+QSpinBox, QDoubleSpinBox {
+    background: #111214;
+    border: 1px solid #2a2b30;
+    border-radius: 6px;
+    padding: 4px 8px;
+    color: #e0e2e8;
+}
+QSpinBox:focus, QDoubleSpinBox:focus {
+    border-color: #3b82f6;
+}
+QSpinBox::up-button, QSpinBox::down-button,
+QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
+    width: 16px;
+    background: #1e2027;
+    border: none;
+}
+
+/* ── Progress bar ───────────────────────────────────────────────────── */
+QProgressBar {
+    background: #111214;
+    border: none;
+    border-radius: 2px;
+    height: 4px;
+    text-align: center;
+    color: transparent;
+}
+QProgressBar::chunk {
+    background: #3b82f6;
+    border-radius: 2px;
+}
+
+/* ── Log output ─────────────────────────────────────────────────────── */
+QTextEdit {
+    background: #0f1012;
+    border: none;
+    color: #9aa0b0;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 12px;
+    padding: 10px 14px;
+    selection-background-color: #2a3a5a;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+QPushButton {
+    background: transparent;
+    border: 1px solid #2a2b30;
+    border-radius: 6px;
+    padding: 6px 14px;
+    color: #9aa0b0;
+    font-size: 13px;
+}
+QPushButton:hover {
+    background: #22252e;
+    border-color: #3a3d47;
+    color: #c9ccd4;
+}
+QPushButton:pressed {
+    background: #1a1d25;
+}
+QPushButton:disabled {
+    color: #3a3d47;
+    border-color: #22252e;
+}
+
+QPushButton#btn-start {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+    color: #ffffff;
+    font-weight: 600;
+    padding: 7px 20px;
+}
+QPushButton#btn-start:hover {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+}
+QPushButton#btn-start:disabled {
+    background: #1e2a42;
+    border-color: #1e2a42;
+    color: #4a5a7a;
+}
+
+QPushButton#btn-stop {
+    background: #450a0a;
+    border-color: #7f1d1d;
+    color: #fca5a5;
+}
+QPushButton#btn-stop:hover {
+    background: #5a0e0e;
+    border-color: #991b1b;
+    color: #fecaca;
+}
+QPushButton#btn-stop:disabled {
+    background: #1a1214;
+    border-color: #2a1a1a;
+    color: #4a2a2a;
+}
+
+/* ── Dividers ───────────────────────────────────────────────────────── */
+QFrame[frameShape="4"],   /* HLine */
+QFrame[frameShape="5"] {  /* VLine */
+    color: #2a2b30;
+    border: none;
+    background: #2a2b30;
+    max-height: 1px;
+    max-width: 1px;
+}
+
+/* ── Stat value labels ──────────────────────────────────────────────── */
+QLabel#stat-value {
+    font-size: 22px;
+    font-weight: 600;
+    color: #e0e2e8;
+}
+QLabel#stat-value-green  { font-size: 22px; font-weight: 600; color: #4ade80; }
+QLabel#stat-value-red    { font-size: 22px; font-weight: 600; color: #f87171; }
+QLabel#stat-label        { font-size: 10px; color: #555b6b; letter-spacing: 0.5px; }
+QLabel#stat-domain       { font-size: 12px; color: #9aa0b0; font-family: "Consolas", monospace; }
+
+/* ── Status badge ───────────────────────────────────────────────────── */
+QLabel#badge-idle    { background: #1e2027; border: 1px solid #2a2b30; border-radius: 10px;
+                        color: #555b6b; font-size: 11px; padding: 2px 10px; }
+QLabel#badge-running { background: #052e16; border: 1px solid #166534; border-radius: 10px;
+                        color: #4ade80; font-size: 11px; padding: 2px 10px; }
+QLabel#badge-stopping{ background: #2d1a06; border: 1px solid #92400e; border-radius: 10px;
+                        color: #fbbf24; font-size: 11px; padding: 2px 10px; }
+
+/* ── Scrollbars ─────────────────────────────────────────────────────── */
+QScrollBar:vertical {
+    background: #111214;
+    width: 8px;
+    border: none;
+}
+QScrollBar::handle:vertical {
+    background: #2a2b30;
+    border-radius: 4px;
+    min-height: 20px;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar:horizontal { height: 0; }
+"""
+
+# ---------------------------------------------------------------------------
+# Log colours  (used to paint rich text in the log pane)
+# ---------------------------------------------------------------------------
+
+LOG_COLORS = {
+    "ok":   "#4ade80",   # green  — success
+    "err":  "#f87171",   # red    — error
+    "warn": "#fbbf24",   # amber  — warning / blocked
+    "info": "#60a5fa",   # blue   — informational
+    "ts":   "#3a3d47",   # dim    — timestamp
+    "dim":  "#555b6b",   # muted  — secondary
+}
+
+
+def _classify(text: str) -> str:
+    """Return a colour key based on the message prefix."""
+    if text.startswith("✅") or text.startswith("✔") or text.startswith("▶"):
+        return "ok"
+    if text.startswith("❌") or "Error" in text:
+        return "err"
+    if text.startswith("🚫") or text.startswith("🛑") or text.startswith("⚠"):
+        return "warn"
+    return "info"
+
+
+# ---------------------------------------------------------------------------
+# Sidebar helpers
+# ---------------------------------------------------------------------------
+
+def _section_label(text: str) -> QLabel:
+    lbl = QLabel(text.upper())
+    lbl.setObjectName("section-heading")
+    lbl.setContentsMargins(0, 0, 0, 2)
+    return lbl
+
+
+def _hline() -> QFrame:
+    f = QFrame()
+    f.setFrameShape(QFrame.Shape.HLine)
+    f.setFixedHeight(1)
+    return f
+
+
+# ---------------------------------------------------------------------------
+# Main window
 # ---------------------------------------------------------------------------
 
 class CrawlerApp(QWidget):
@@ -377,223 +635,393 @@ class CrawlerApp(QWidget):
         super().__init__()
         self._output_folder = "output"
         self._worker: Spider | None = None
-        self._init_ui()
+        self._build_ui()
 
-    # ------------------------------------------------------------------
-    def _init_ui(self) -> None:
+    # ──────────────────────────────────────────────────────────────────
+    def _build_ui(self) -> None:
         self.setWindowTitle("Web Crawler")
-        self.setMinimumSize(860, 680)
+        self.setMinimumSize(960, 700)
 
+        # Root: title bar on top, body below
         root = QVBoxLayout(self)
-        root.setSpacing(10)
-        root.setContentsMargins(14, 14, 14, 14)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        # --- Title ---
-        title = QLabel("🌐 Web Crawler")
-        title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        root.addWidget(title)
+        root.addWidget(self._build_titlebar())
 
-        # --- URL input ---
-        url_box = QGroupBox("Target URL")
-        url_layout = QHBoxLayout(url_box)
-        self.url_input = QLineEdit(placeholderText="https://books.toscrape.com")
-        self.url_input.setText("https://books.toscrape.com")
-        self.url_input.returnPressed.connect(self.start_crawl)
-        url_layout.addWidget(self.url_input)
-        root.addWidget(url_box)
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+        body.addWidget(self._build_sidebar())
+        body.addWidget(self._build_main(), 1)
 
-        # --- Settings (two columns) ---
-        settings_box = QGroupBox("Settings")
-        grid = QGridLayout(settings_box)
-        grid.setSpacing(8)
+        body_widget = QWidget()
+        body_widget.setLayout(body)
+        root.addWidget(body_widget, 1)
 
-        # Extraction checkboxes
-        extract_label = QLabel("Extract:")
-        extract_label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        grid.addWidget(extract_label, 0, 0)
+    # ── Title bar ─────────────────────────────────────────────────────
+    def _build_titlebar(self) -> QWidget:
+        bar = QWidget()
+        bar.setObjectName("titlebar")
+        bar.setFixedHeight(40)
 
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(16, 0, 16, 0)
+
+        title = QLabel("Web Crawler")
+        title.setStyleSheet("font-size:13px; font-weight:600; color:#c9ccd4;")
+        layout.addWidget(title)
+        layout.addStretch()
+
+        self.badge = QLabel("Idle")
+        self.badge.setObjectName("badge-idle")
+        layout.addWidget(self.badge)
+
+        return bar
+
+    # ── Sidebar ────────────────────────────────────────────────────────
+    def _build_sidebar(self) -> QWidget:
+        sidebar = QWidget()
+        sidebar.setObjectName("sidebar")
+        sidebar.setFixedWidth(210)
+
+        layout = QVBoxLayout(sidebar)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(14)
+
+        # Extract group
+        layout.addWidget(_section_label("Extract"))
         self.cb_links    = QCheckBox("Links",    checked=True)
         self.cb_images   = QCheckBox("Images",   checked=True)
         self.cb_text     = QCheckBox("Text",     checked=True)
         self.cb_metadata = QCheckBox("Metadata", checked=True)
-        self.cb_html     = QCheckBox("Raw HTML", checked=True)
-        for i, cb in enumerate([self.cb_links, self.cb_images, self.cb_text,
-                                 self.cb_metadata, self.cb_html]):
-            grid.addWidget(cb, 0, i + 1)
+        self.cb_html     = QCheckBox("Raw HTML", checked=False)
+        for cb in [self.cb_links, self.cb_images, self.cb_text,
+                   self.cb_metadata, self.cb_html]:
+            layout.addWidget(cb)
 
-        # Behaviour checkboxes
-        behav_label = QLabel("Behaviour:")
-        behav_label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        grid.addWidget(behav_label, 1, 0)
+        layout.addWidget(_hline())
 
-        self.cb_same_domain = QCheckBox("Stay on domain", checked=True)
+        # Behaviour group
+        layout.addWidget(_section_label("Behaviour"))
+        self.cb_same_domain = QCheckBox("Stay on domain",     checked=True)
         self.cb_robots      = QCheckBox("Respect robots.txt", checked=True)
-        grid.addWidget(self.cb_same_domain, 1, 1, 1, 2)
-        grid.addWidget(self.cb_robots,      1, 3, 1, 2)
+        layout.addWidget(self.cb_same_domain)
+        layout.addWidget(self.cb_robots)
 
-        # Numerics
-        num_label = QLabel("Limits:")
-        num_label.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        grid.addWidget(num_label, 2, 0)
+        layout.addWidget(_hline())
 
-        grid.addWidget(QLabel("Max depth:"), 2, 1)
+        # Numeric limits
+        layout.addWidget(_section_label("Limits"))
+
+        depth_row = QHBoxLayout()
+        depth_lbl = QLabel("Max depth")
+        depth_lbl.setStyleSheet("color:#555b6b; font-size:12px;")
         self.spin_depth = QSpinBox(minimum=1, maximum=20, value=3)
-        grid.addWidget(self.spin_depth, 2, 2)
+        self.spin_depth.setFixedWidth(64)
+        depth_row.addWidget(depth_lbl, 1)
+        depth_row.addWidget(self.spin_depth)
+        layout.addLayout(depth_row)
 
-        grid.addWidget(QLabel("Delay (s):"), 2, 3)
+        delay_row = QHBoxLayout()
+        delay_lbl = QLabel("Delay (s)")
+        delay_lbl.setStyleSheet("color:#555b6b; font-size:12px;")
         self.spin_delay = QDoubleSpinBox(minimum=0.5, maximum=30.0,
-                                         value=1.5, singleStep=0.5,
-                                         decimals=1)
-        grid.addWidget(self.spin_delay, 2, 4)
+                                          value=1.5, singleStep=0.5,
+                                          decimals=1)
+        self.spin_delay.setFixedWidth(64)
+        delay_row.addWidget(delay_lbl, 1)
+        delay_row.addWidget(self.spin_delay)
+        layout.addLayout(delay_row)
 
-        root.addWidget(settings_box)
+        layout.addWidget(_hline())
 
-        # --- Output folder ---
-        folder_layout = QHBoxLayout()
-        self.folder_label = QLabel(f"📂 Output: {self._output_folder}")
-        folder_btn = QPushButton("Browse…")
-        folder_btn.setFixedWidth(80)
-        folder_btn.clicked.connect(self._choose_folder)
-        folder_layout.addWidget(self.folder_label, 1)
-        folder_layout.addWidget(folder_btn)
-        root.addLayout(folder_layout)
+        # Output folder
+        layout.addWidget(_section_label("Output folder"))
+        self.folder_display = QLabel(self._output_folder)
+        self.folder_display.setObjectName("stat-domain")
+        self.folder_display.setWordWrap(True)
+        layout.addWidget(self.folder_display)
 
-        # --- Progress + status ---
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setTextVisible(True)
-        root.addWidget(self.progress_bar)
+        browse_btn = QPushButton("Browse…")
+        browse_btn.clicked.connect(self._choose_folder)
+        layout.addWidget(browse_btn)
 
-        self.status_label = QLabel("Status: Idle")
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        root.addWidget(self.status_label)
+        layout.addStretch()
+        return sidebar
 
-        # --- Stats panel ---
-        stats_box = QGroupBox("Statistics")
-        stats_layout = QHBoxLayout(stats_box)
+    # ── Main panel ─────────────────────────────────────────────────────
+    def _build_main(self) -> QWidget:
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        self.lbl_crawled = self._stat_label("Pages crawled", "0")
-        self.lbl_errors  = self._stat_label("Errors", "0")
-        self.lbl_images  = self._stat_label("Images saved", "0")
-        for w in [self.lbl_crawled, self.lbl_errors, self.lbl_images]:
-            stats_layout.addWidget(w)
-            if w is not self.lbl_images:
-                sep = QFrame()
-                sep.setFrameShape(QFrame.Shape.VLine)
-                sep.setFrameShadow(QFrame.Shadow.Sunken)
-                stats_layout.addWidget(sep)
+        # URL bar
+        layout.addWidget(self._build_url_bar())
 
-        root.addWidget(stats_box)
+        # Stats bar
+        layout.addWidget(self._build_stats_bar())
 
-        # --- Action buttons ---
-        btn_layout = QHBoxLayout()
+        # Progress strip
+        layout.addWidget(self._build_progress_strip())
 
-        self.btn_start = QPushButton("🚀  Start Crawl")
-        self.btn_start.setMinimumHeight(36)
+        # Log
+        self.log_output = QTextEdit(readOnly=True)
+        layout.addWidget(self.log_output, 1)
+
+        # Bottom toolbar
+        layout.addWidget(self._build_toolbar())
+
+        return panel
+
+    # ── URL bar ────────────────────────────────────────────────────────
+    def _build_url_bar(self) -> QWidget:
+        bar = QWidget()
+        bar.setStyleSheet("background:#111214; border-bottom:1px solid #2a2b30;")
+        bar.setFixedHeight(52)
+
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(14, 0, 14, 0)
+        layout.setSpacing(8)
+
+        self.url_input = QLineEdit(placeholderText="https://")
+        self.url_input.setText("https://books.toscrape.com")
+        self.url_input.returnPressed.connect(self.start_crawl)
+        layout.addWidget(self.url_input, 1)
+
+        self.btn_start = QPushButton("Start")
+        self.btn_start.setObjectName("btn-start")
+        self.btn_start.setFixedHeight(34)
         self.btn_start.clicked.connect(self.start_crawl)
+        layout.addWidget(self.btn_start)
 
-        self.btn_stop = QPushButton("⛔  Stop")
-        self.btn_stop.setMinimumHeight(36)
+        self.btn_stop = QPushButton("Stop")
+        self.btn_stop.setObjectName("btn-stop")
+        self.btn_stop.setFixedHeight(34)
         self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self.stop_crawl)
+        layout.addWidget(self.btn_stop)
 
-        self.btn_export_csv  = QPushButton("📄  Export CSV")
-        self.btn_export_csv.clicked.connect(self._export_csv)
+        return bar
 
-        self.btn_export_json = QPushButton("📋  Export JSON")
-        self.btn_export_json.clicked.connect(self._export_json)
+    # ── Stats bar ──────────────────────────────────────────────────────
+    def _build_stats_bar(self) -> QWidget:
+        bar = QWidget()
+        bar.setStyleSheet("border-bottom:1px solid #2a2b30;")
+        bar.setFixedHeight(70)
 
-        self.btn_clear = QPushButton("🗑  Clear Log")
-        self.btn_clear.clicked.connect(self._clear_log)
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        for btn in [self.btn_start, self.btn_stop, self.btn_export_csv,
-                    self.btn_export_json, self.btn_clear]:
-            btn_layout.addWidget(btn)
+        def stat_cell(label: str, value_id: str, color_id: str = "stat-value") -> tuple:
+            cell = QWidget()
+            cell.setStyleSheet("border-right:1px solid #2a2b30;")
+            vbox = QVBoxLayout(cell)
+            vbox.setContentsMargins(18, 10, 18, 10)
+            vbox.setSpacing(2)
+            val = QLabel("0")
+            val.setObjectName(color_id)
+            lbl = QLabel(label.upper())
+            lbl.setObjectName("stat-label")
+            vbox.addWidget(val)
+            vbox.addWidget(lbl)
+            return cell, val
 
-        root.addLayout(btn_layout)
+        cell_c, self.lbl_crawled = stat_cell("Pages crawled", "crawled", "stat-value-green")
+        cell_i, self.lbl_images  = stat_cell("Images saved",  "images")
+        cell_e, self.lbl_errors  = stat_cell("Errors",        "errors",  "stat-value-red")
 
-        # --- Log output ---
-        self.log_output = QTextEdit(readOnly=True)
-        self.log_output.setFont(QFont("Consolas", 9))
-        self.log_output.setMinimumHeight(200)
-        root.addWidget(self.log_output, 1)
+        # Domain cell (no right border on last)
+        cell_d = QWidget()
+        vbox_d = QVBoxLayout(cell_d)
+        vbox_d.setContentsMargins(18, 10, 18, 10)
+        vbox_d.setSpacing(2)
+        self.lbl_domain = QLabel("—")
+        self.lbl_domain.setObjectName("stat-domain")
+        lbl_d = QLabel("TARGET DOMAIN")
+        lbl_d.setObjectName("stat-label")
+        vbox_d.addWidget(self.lbl_domain)
+        vbox_d.addWidget(lbl_d)
 
-    # ------------------------------------------------------------------
-    # Stat label factory
-    # ------------------------------------------------------------------
+        for cell in [cell_c, cell_i, cell_e, cell_d]:
+            layout.addWidget(cell, 1)
 
-    @staticmethod
-    def _stat_label(heading: str, value: str) -> QLabel:
-        lbl = QLabel(f"<b>{value}</b><br/><small>{heading}</small>")
-        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setTextFormat(Qt.TextFormat.RichText)
-        return lbl
+        return bar
 
-    def _update_stats(self, crawled: int, errors: int, images: int) -> None:
-        self.lbl_crawled.setText(f"<b>{crawled}</b><br/><small>Pages crawled</small>")
-        self.lbl_errors.setText(f"<b>{errors}</b><br/><small>Errors</small>")
-        self.lbl_images.setText(f"<b>{images}</b><br/><small>Images saved</small>")
+    # ── Progress strip ──────────────────────────────────────────────────
+    def _build_progress_strip(self) -> QWidget:
+        strip = QWidget()
+        strip.setFixedHeight(20)
+        strip.setStyleSheet("background:#0f1012; border-bottom:1px solid #2a2b30;")
 
-    # ------------------------------------------------------------------
+        layout = QHBoxLayout(strip)
+        layout.setContentsMargins(14, 0, 14, 0)
+        layout.setSpacing(10)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setFixedHeight(4)
+        self.progress_bar.setTextVisible(False)
+        layout.addWidget(self.progress_bar, 1)
+
+        self.pct_label = QLabel("0%")
+        self.pct_label.setStyleSheet("font-size:11px; color:#555b6b; min-width:28px;")
+        layout.addWidget(self.pct_label)
+
+        return strip
+
+    # ── Bottom toolbar ──────────────────────────────────────────────────
+    def _build_toolbar(self) -> QWidget:
+        bar = QWidget()
+        bar.setStyleSheet("background:#111214; border-top:1px solid #2a2b30;")
+        bar.setFixedHeight(42)
+
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(14, 0, 14, 0)
+        layout.setSpacing(6)
+
+        btn_csv  = QPushButton("Export CSV")
+        btn_json = QPushButton("Export JSON")
+        btn_csv.clicked.connect(self._export_csv)
+        btn_json.clicked.connect(self._export_json)
+        layout.addWidget(btn_csv)
+        layout.addWidget(btn_json)
+
+        layout.addStretch()
+
+        btn_clear = QPushButton("Clear log")
+        btn_clear.clicked.connect(self._clear_log)
+        layout.addWidget(btn_clear)
+
+        return bar
+
+    # ──────────────────────────────────────────────────────────────────
     # Folder selection
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────
 
     def _choose_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Select Output Folder")
         if folder:
             self._output_folder = folder
-            self.folder_label.setText(f"📂 Output: {folder}")
-            self._log(f"Output folder set to: {folder}")
+            self.folder_display.setText(folder)
+            self._log(f"Output folder → {folder}", kind="info")
 
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────
     # Crawl control
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────
 
     def start_crawl(self) -> None:
         url = self.url_input.text().strip()
         if not url:
-            self._log("⚠️  Please enter a URL.")
+            self._log("Please enter a URL.", kind="warn")
             return
+
+        domain = urlparse(url).netloc or url
+        self.lbl_domain.setText(domain)
+        self.lbl_crawled.setText("0")
+        self.lbl_images.setText("0")
+        self.lbl_errors.setText("0")
 
         self._worker = Spider(
             url,
-            max_depth      = self.spin_depth.value(),
-            rate_delay     = self.spin_delay.value(),
-            stay_on_domain = self.cb_same_domain.isChecked(),
-            respect_robots = self.cb_robots.isChecked(),
-            extract_links  = self.cb_links.isChecked(),
-            extract_images = self.cb_images.isChecked(),
-            extract_text   = self.cb_text.isChecked(),
+            max_depth        = self.spin_depth.value(),
+            rate_delay       = self.spin_delay.value(),
+            stay_on_domain   = self.cb_same_domain.isChecked(),
+            respect_robots   = self.cb_robots.isChecked(),
+            extract_links    = self.cb_links.isChecked(),
+            extract_images   = self.cb_images.isChecked(),
+            extract_text     = self.cb_text.isChecked(),
             extract_metadata = self.cb_metadata.isChecked(),
-            save_html      = self.cb_html.isChecked(),
-            output_folder  = self._output_folder,
+            save_html        = self.cb_html.isChecked(),
+            output_folder    = self._output_folder,
         )
-        self._worker.log.connect(self._log)
-        self._worker.progress.connect(self.progress_bar.setValue)
-        self._worker.stats.connect(self._update_stats)
-        self._worker.done.connect(self._on_crawl_done)
+        self._worker.log.connect(self._on_log)
+        self._worker.progress.connect(self._on_progress)
+        self._worker.stats.connect(self._on_stats)
+        self._worker.done.connect(self._on_done)
 
         self.btn_start.setEnabled(False)
         self.btn_stop.setEnabled(True)
         self.progress_bar.setValue(0)
-        self.status_label.setText("Status: Crawling…")
-        self._log(f"▶ Started crawling: {url}")
+        self._set_badge("running")
+        self._log(f"Started crawling: {url}", kind="ok")
         self._worker.start()
 
     def stop_crawl(self) -> None:
         if self._worker:
             self._worker.stop()
-            self.status_label.setText("Status: Stopping…")
-            self._log("🛑 Stop requested — finishing current page…")
+            self._set_badge("stopping")
+            self._log("Stop requested — finishing current page…", kind="warn")
 
-    def _on_crawl_done(self) -> None:
+    def _on_done(self) -> None:
         self.btn_start.setEnabled(True)
         self.btn_stop.setEnabled(False)
-        self.status_label.setText("Status: Idle")
-        self._log("✔ Crawl complete.")
+        self._set_badge("idle")
+        self.progress_bar.setValue(100)
+        self.pct_label.setText("100%")
+        self._log("Crawl complete.", kind="ok")
 
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────
+    # Signal handlers
+    # ──────────────────────────────────────────────────────────────────
+
+    def _on_log(self, text: str) -> None:
+        self._log(text, kind=_classify(text))
+
+    def _on_progress(self, pct: int) -> None:
+        self.progress_bar.setValue(pct)
+        self.pct_label.setText(f"{pct}%")
+
+    def _on_stats(self, crawled: int, errors: int, images: int) -> None:
+        self.lbl_crawled.setText(str(crawled))
+        self.lbl_errors.setText(str(errors))
+        self.lbl_images.setText(str(images))
+
+    # ──────────────────────────────────────────────────────────────────
+    # Badge state
+    # ──────────────────────────────────────────────────────────────────
+
+    def _set_badge(self, state: str) -> None:
+        texts  = {"idle": "Idle", "running": "Crawling", "stopping": "Stopping"}
+        self.badge.setText(texts.get(state, state))
+        self.badge.setObjectName(f"badge-{state}")
+        # Force Qt to re-apply the stylesheet after objectName change
+        self.badge.style().unpolish(self.badge)
+        self.badge.style().polish(self.badge)
+
+    # ──────────────────────────────────────────────────────────────────
+    # Log with colour
+    # ──────────────────────────────────────────────────────────────────
+
+    def _log(self, text: str, *, kind: str = "info") -> None:
+        ts   = QDateTime.currentDateTime().toString("HH:mm:ss")
+        col  = LOG_COLORS.get(kind, LOG_COLORS["info"])
+        ts_c = LOG_COLORS["ts"]
+
+        cursor = self.log_output.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+
+        # Timestamp
+        fmt_ts = QTextCharFormat()
+        fmt_ts.setForeground(QColor(ts_c))
+        cursor.insertText(ts + "  ", fmt_ts)
+
+        # Message
+        fmt_msg = QTextCharFormat()
+        fmt_msg.setForeground(QColor(col))
+        cursor.insertText(text + "\n", fmt_msg)
+
+        # Auto-scroll
+        self.log_output.setTextCursor(cursor)
+        self.log_output.ensureCursorVisible()
+
+    def _clear_log(self) -> None:
+        self.log_output.clear()
+
+    # ──────────────────────────────────────────────────────────────────
     # Export
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────
 
     def _export_csv(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
@@ -602,9 +1030,9 @@ class CrawlerApp(QWidget):
         if path:
             try:
                 n = db_export_csv(path)
-                self._log(f"📄 Exported {n} rows → {path}")
+                self._log(f"Exported {n} rows → {path}", kind="ok")
             except Exception as exc:
-                self._log(f"❌ CSV export failed: {exc}")
+                self._log(f"CSV export failed: {exc}", kind="err")
 
     def _export_json(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
@@ -613,19 +1041,9 @@ class CrawlerApp(QWidget):
         if path:
             try:
                 n = db_export_json(path)
-                self._log(f"📋 Exported {n} records → {path}")
+                self._log(f"Exported {n} records → {path}", kind="ok")
             except Exception as exc:
-                self._log(f"❌ JSON export failed: {exc}")
-
-    # ------------------------------------------------------------------
-    # Log helpers
-    # ------------------------------------------------------------------
-
-    def _log(self, text: str) -> None:
-        self.log_output.append(text)
-
-    def _clear_log(self) -> None:
-        self.log_output.clear()
+                self._log(f"JSON export failed: {exc}", kind="err")
 
 
 # ---------------------------------------------------------------------------
@@ -634,6 +1052,7 @@ class CrawlerApp(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setStyleSheet(QSS)
     window = CrawlerApp()
     window.show()
     sys.exit(app.exec())
