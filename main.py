@@ -1,5 +1,5 @@
 """
-main.py — Entry point. Run with: python -m crawler
+main.py — Entry point for Spider — The Web Crawler. Run with: python main.py
 """
 
 import logging

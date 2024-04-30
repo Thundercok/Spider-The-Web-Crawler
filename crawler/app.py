@@ -54,7 +54,7 @@ class CrawlerApp(QWidget):
     # ──────────────────────────────────────────────────────────────────
 
     def _build(self) -> None:
-        self.setWindowTitle("Web Crawler")
+        self.setWindowTitle("Spider — The Web Crawler")
         self.setMinimumSize(960, 700)
 
         root = QVBoxLayout(self)
@@ -84,7 +84,7 @@ class CrawlerApp(QWidget):
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(16, 0, 16, 0)
 
-        title = QLabel("Web Crawler")
+        title = QLabel("Spider — The Web Crawler")
         title.setStyleSheet("font-size:13px; font-weight:600; color:#c9ccd4;")
         layout.addWidget(title)
         layout.addStretch()
