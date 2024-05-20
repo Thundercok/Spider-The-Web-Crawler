@@ -125,8 +125,10 @@ class CrawlerApp(QWidget):
         layout.addWidget(_section_label("Behaviour"))
         self.cb_same_domain = QCheckBox("Stay on domain",     checked=True)
         self.cb_robots      = QCheckBox("Respect robots.txt", checked=True)
+        self.cb_stealth     = QCheckBox("Stealth mode",       checked=True)
         layout.addWidget(self.cb_same_domain)
         layout.addWidget(self.cb_robots)
+        layout.addWidget(self.cb_stealth)
 
         layout.addWidget(_hline())
 
@@ -134,10 +136,11 @@ class CrawlerApp(QWidget):
         layout.addWidget(_section_label("Limits"))
 
         for attr, label, cls, kw in [
-            ("spin_depth", "Max depth",  QSpinBox,       dict(minimum=1, maximum=20, value=3)),
-            ("spin_delay", "Delay (s)",  QDoubleSpinBox, dict(minimum=0.5, maximum=30.0,
-                                                               value=1.5, singleStep=0.5,
-                                                               decimals=1)),
+            ("spin_depth",   "Max depth",  QSpinBox,       dict(minimum=1, maximum=20, value=3)),
+            ("spin_delay",   "Delay (s)",  QDoubleSpinBox, dict(minimum=0.5, maximum=30.0,
+                                                                  value=1.5, singleStep=0.5,
+                                                                  decimals=1)),
+            ("spin_retries", "Retries",    QSpinBox,       dict(minimum=0, maximum=10, value=2)),
         ]:
             row = QHBoxLayout()
             lbl = QLabel(label)
@@ -347,6 +350,8 @@ class CrawlerApp(QWidget):
             extract_metadata = self.cb_metadata.isChecked(),
             save_html        = self.cb_html.isChecked(),
             output_folder    = self._output_folder,
+            stealth          = self.cb_stealth.isChecked(),
+            max_retries      = self.spin_retries.value(),
         )
         self._worker.log.connect(lambda t: self._log(t, kind=classify(t)))
         self._worker.progress.connect(self._on_progress)

@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import queue
+import random
 import time
 from urllib.parse import urljoin, urlparse
 
@@ -28,6 +29,26 @@ from . import db
 from .utils import can_fetch, normalize, safe_filename, url_folder
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Stealth helpers
+# ---------------------------------------------------------------------------
+
+_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+]
+
+# Injected before every page load — masks the most common bot-detection signals.
+_STEALTH_JS = """
+Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+Object.defineProperty(navigator, 'plugins',   {get: () => [1, 2, 3]});
+Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+window.chrome = {runtime: {}};
+"""
 
 
 class Spider(QThread):
@@ -50,6 +71,8 @@ class Spider(QThread):
         extract_metadata: bool = True,
         save_html: bool = False,
         output_folder: str = "output",
+        stealth: bool = True,
+        max_retries: int = 2,
     ) -> None:
         super().__init__()
         self.start_url       = normalize(start_url)
@@ -63,6 +86,8 @@ class Spider(QThread):
         self.extract_metadata = extract_metadata
         self.save_html       = save_html
         self.output_folder   = output_folder
+        self.stealth         = stealth
+        self.max_retries     = max_retries
 
         self._start_domain = urlparse(self.start_url).netloc
         self._visited: set[str] = set()
@@ -89,10 +114,28 @@ class Spider(QThread):
                     "--disable-dev-shm-usage"):
             options.add_argument(arg)
 
+        if self.stealth:
+            ua = random.choice(_USER_AGENTS)
+            options.add_argument(f"--user-agent={ua}")
+            # Hide automation signals at the Chrome level
+            options.add_argument("--disable-blink-features=AutomationControlled")
+            options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            options.add_experimental_option("useAutomationExtension", False)
+            # Realistic window size — headless default (800×600) is a giveaway
+            options.add_argument("--window-size=1440,900")
+
         driver = webdriver.Chrome(
             service=Service(ChromeDriverManager().install()),
             options=options,
         )
+
+        if self.stealth:
+            # Patch navigator.webdriver and other JS fingerprints
+            driver.execute_cdp_cmd(
+                "Page.addScriptToEvaluateOnNewDocument",
+                {"source": _STEALTH_JS},
+            )
+
         try:
             self._loop(driver)
         finally:
@@ -119,8 +162,7 @@ class Spider(QThread):
             self._visited.add(url)
 
             try:
-                driver.get(url)
-                time.sleep(self.rate_delay)
+                self._fetch_with_retry(driver, url)
 
                 title = (driver.title or "Untitled").strip()
                 folder = url_folder(self.output_folder, url)
@@ -169,6 +211,40 @@ class Spider(QThread):
                 self.stats.emit(self._crawled, self._errors, self._images)
 
         self.progress.emit(100)
+
+    # ------------------------------------------------------------------
+    # Fetch with retry + human-like delay
+    # ------------------------------------------------------------------
+
+    def _fetch_with_retry(self, driver, url: str) -> None:
+        """
+        Load *url*, wait a randomised human-like delay, then return.
+        Retries up to self.max_retries times on any exception.
+        """
+        for attempt in range(1, self.max_retries + 2):  # +2: first try + retries
+            try:
+                driver.get(url)
+                self._human_delay()
+                return
+            except Exception as exc:
+                if attempt > self.max_retries:
+                    raise
+                wait = 2 ** attempt + random.uniform(0, 1)
+                self.log.emit(f"⚠ Retry {attempt}/{self.max_retries} for {url} "
+                              f"(waiting {wait:.1f}s): {exc}")
+                time.sleep(wait)
+
+    def _human_delay(self) -> None:
+        """
+        Sleep for a randomised duration centred on self.rate_delay.
+        Adds ±30 % jitter so requests never arrive at machine-regular intervals,
+        plus a rare longer pause (1-in-8 chance) to mimic reading time.
+        """
+        jitter = self.rate_delay * 0.3
+        delay = self.rate_delay + random.uniform(-jitter, jitter)
+        if random.randint(1, 8) == 1:           # ~12 % chance of a longer pause
+            delay += random.uniform(2.0, 5.0)
+        time.sleep(max(0.5, delay))
 
     # ------------------------------------------------------------------
     # Progress estimation
