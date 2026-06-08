@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "spider",
+    "spider_worker",
+    "spider_cli",
+    "spider_utils",
+    "spider_agent",
+    "spider_agent_types",
+    "spider_agent_html",
+    "spider_mcp",
+    # internal
+    "examples",
+    "benches"]
+resolver = "2"
+
